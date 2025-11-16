@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CodePilot Astro-Pilot</title>
+    <title>CodePilot Astro-Pilot Fixed</title>
     <style>
         body {
             margin: 0;
@@ -20,7 +20,7 @@
             background-color: #04091C;
             border: 2px solid #336B87;
             display: block;
-            box-shadow: 0 0 20px rgba(51, 107, 135, 0.5);
+            box-shadow: 0 0 30px rgba(51, 107, 135, 0.7); /* Stronger glow */
         }
         #score-board {
             position: absolute;
@@ -28,7 +28,7 @@
             left: 50%;
             transform: translateX(-50%);
             font-size: 1.5rem;
-            text-shadow: 0 0 5px #E0F7FA;
+            text-shadow: 0 0 8px #00BCD4; /* Cyan glow */
         }
     </style>
 </head>
@@ -39,18 +39,16 @@
     <script>
         // === Configuration ===
         const CONFIG = {
-            SHIP_THRUST: 0.05,
-            SHIP_ROTATION_SPEED: 0.05,
-            SHIP_FRICTION: 0.99,
-            SHIP_RADIUS: 15,
-            BULLET_SPEED: 7,
+            SHIP_RADIUS: 20,
+            BULLET_SPEED: 8,
             BULLET_LIFETIME: 60, // frames
             ASTEROID_MIN_SIZE: 15,
             ASTEROID_MAX_SIZE: 50,
             ASTEROID_SPAWN_COUNT: 5,
             JOYSTICK_RADIUS: 50,
             JOYSTICK_ACTIVE_RADIUS: 100,
-            FIRE_COOLDOWN: 15, // frames
+            FIRE_COOLDOWN: 10, // frames (faster firing)
+            ASTEROID_SPEED_FACTOR: 1.5 // Asteroids move faster since the ship is fixed
         };
 
         // === Game State and Setup ===
@@ -76,32 +74,16 @@
 
         class Ship {
             constructor() {
+                // Fixed position at the center
                 this.x = canvas.width / 2;
                 this.y = canvas.height / 2;
                 this.radius = CONFIG.SHIP_RADIUS;
                 this.angle = 0; // radians
-                this.vx = 0;
-                this.vy = 0;
-                this.isThrusting = false;
+                this.isFiring = false;
             }
 
             update() {
-                if (this.isThrusting) {
-                    this.vx += CONFIG.SHIP_THRUST * Math.cos(this.angle);
-                    this.vy += CONFIG.SHIP_THRUST * Math.sin(this.angle);
-                }
-
-                this.vx *= CONFIG.SHIP_FRICTION;
-                this.vy *= CONFIG.SHIP_FRICTION;
-
-                this.x += this.vx;
-                this.y += this.vy;
-
-                // Wrap around edges
-                if (this.x < 0) this.x = canvas.width;
-                if (this.x > canvas.width) this.x = 0;
-                if (this.y < 0) this.y = canvas.height;
-                if (this.y > canvas.height) this.y = 0;
+                // Ship position is static
             }
 
             draw() {
@@ -109,29 +91,50 @@
                 ctx.translate(this.x, this.y);
                 ctx.rotate(this.angle + Math.PI / 2); // Rotate to point 'up' by default (0 angle)
 
-                // Draw Exhaust (Thrust)
-                if (this.isThrusting) {
+                const r = this.radius;
+
+                // --- Alien Spaceship Design (Hexagonal Hull) ---
+
+                // 1. Draw Exhaust (Visual Firing Feedback)
+                if (this.isFiring) {
                     ctx.beginPath();
-                    ctx.moveTo(0, this.radius * 1.5);
-                    ctx.lineTo(-this.radius * 0.6, this.radius * 1.5 + Math.random() * 8);
-                    ctx.lineTo(this.radius * 0.6, this.radius * 1.5 + Math.random() * 8);
+                    ctx.moveTo(0, r * 1.5);
+                    ctx.lineTo(-r * 0.5, r * 1.5 + Math.random() * 10);
+                    ctx.lineTo(r * 0.5, r * 1.5 + Math.random() * 10);
                     ctx.closePath();
-                    ctx.fillStyle = `rgba(255, ${200 + Math.random() * 55}, 0, 0.8)`;
+                    ctx.fillStyle = `rgba(0, ${150 + Math.random() * 100}, 255, 0.9)`; // Blue/Cyan thrust
                     ctx.fill();
                 }
 
-                // Draw Ship Body
+                // 2. Main Body (Dark Metal Hull)
                 ctx.beginPath();
-                ctx.moveTo(0, -this.radius * 1.5); // Nose
-                ctx.lineTo(-this.radius, this.radius * 1.5); // Bottom Left
-                ctx.lineTo(this.radius, this.radius * 1.5); // Bottom Right
+                // Top point
+                ctx.moveTo(0, -r * 1.5);
+                // Hexagonal points
+                ctx.lineTo(-r * 1.5, r * 0.5);
+                ctx.lineTo(-r, r * 1.5);
+                ctx.lineTo(r, r * 1.5);
+                ctx.lineTo(r * 1.5, r * 0.5);
                 ctx.closePath();
-                ctx.fillStyle = '#E0F7FA'; // Ship Color (Cyan Light)
-                ctx.strokeStyle = '#336B87';
+                
+                ctx.fillStyle = '#455A64'; // Dark Blue-Gray Metal
+                ctx.strokeStyle = '#90A4AE'; // Light Gray Edge
                 ctx.lineWidth = 2;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#00BCD4'; // Subtle Cyan Glow
                 ctx.fill();
                 ctx.stroke();
 
+                // 3. Cockpit/Core (Glowing Center)
+                ctx.beginPath();
+                ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2);
+                ctx.fillStyle = '#00BCD4'; // Cyan Core
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#00BCD4'; 
+                ctx.fill();
+
+                // Reset shadow/transform
+                ctx.shadowBlur = 0;
                 ctx.restore();
             }
         }
@@ -141,6 +144,7 @@
                 this.x = x;
                 this.y = y;
                 this.radius = 2;
+                // Bullets move faster
                 this.vx = CONFIG.BULLET_SPEED * Math.cos(angle);
                 this.vy = CONFIG.BULLET_SPEED * Math.sin(angle);
                 this.life = CONFIG.BULLET_LIFETIME;
@@ -153,10 +157,13 @@
             }
 
             draw() {
-                ctx.fillStyle = '#00BCD4'; // Bullet Color
+                ctx.fillStyle = '#00BCD4'; 
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = '#00BCD4';
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.shadowBlur = 0;
             }
         }
 
@@ -165,14 +172,14 @@
                 this.x = x;
                 this.y = y;
                 this.radius = radius;
-                this.vx = (Math.random() - 0.5) * 2;
-                this.vy = (Math.random() - 0.5) * 2;
+                this.vx = (Math.random() - 0.5) * CONFIG.ASTEROID_SPEED_FACTOR;
+                this.vy = (Math.random() - 0.5) * CONFIG.ASTEROID_SPEED_FACTOR;
                 this.angle = Math.random() * Math.PI * 2;
-                this.rotationSpeed = (Math.random() - 0.5) * 0.01;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.015;
                 this.vertices = 8 + Math.floor(Math.random() * 5);
                 this.jaggedness = [];
                 for (let i = 0; i < this.vertices; i++) {
-                    this.jaggedness.push(0.8 + Math.random() * 0.4);
+                    this.jaggedness.push(0.7 + Math.random() * 0.6); // More varied jaggedness
                 }
             }
 
@@ -193,10 +200,11 @@
                 ctx.translate(this.x, this.y);
                 ctx.rotate(this.angle);
 
+                // --- Realistic Asteroid Shading ---
+
                 ctx.beginPath();
-                ctx.strokeStyle = '#FDD835'; // Asteroid Outline (Yellow)
-                ctx.lineWidth = 2;
                 
+                // Define the jagged polygon path
                 for (let i = 0; i < this.vertices; i++) {
                     const angle = (i / this.vertices) * Math.PI * 2;
                     const r = this.radius * this.jaggedness[i];
@@ -209,8 +217,22 @@
                     }
                 }
                 ctx.closePath();
-                ctx.stroke();
                 
+                // Fill with dark rock color
+                ctx.fillStyle = '#424242'; 
+                ctx.fill();
+
+                // Outer edge stroke (Lighter edge for depth)
+                ctx.strokeStyle = '#616161'; 
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Highlight/Texture effect using shadow on the shape
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = 'rgba(255, 255, 255, 0.2)'; // Faint white highlight
+                ctx.stroke(); // Re-stroke to apply shadow
+                
+                ctx.shadowBlur = 0;
                 ctx.restore();
             }
         }
@@ -255,39 +277,37 @@
         }
 
         function update() {
-            // 1. Update Player
             player.update();
             
-            // Joystick Input Handling
+            // Joystick Input Handling (Rotation and Firing)
             if (joystick.active) {
-                const dx = touchData[joystick.touchId].x - joystick.x;
-                const dy = touchData[joystick.touchId].y - joystick.y;
-                const angle = Math.atan2(dy, dx);
-                
-                // Rotation
-                player.angle = angle;
-                
-                // Thrust if stick is pulled far enough
+                const activeTouch = touchData[joystick.touchId];
+                const dx = activeTouch.x - joystick.x;
+                const dy = activeTouch.y - joystick.y;
                 const distance = Math.hypot(dx, dy);
-                if (distance > CONFIG.JOYSTICK_RADIUS * 0.5) {
-                    player.isThrusting = true;
-                } else {
-                    player.isThrusting = false;
-                }
 
-                // Fire constantly if holding the stick
-                if (distance > CONFIG.JOYSTICK_RADIUS * 0.2 && fireCooldown <= 0) {
-                    bullets.push(new Bullet(player.x, player.y, player.angle));
-                    fireCooldown = CONFIG.FIRE_COOLDOWN;
+                // Rotation: Align ship angle to the joystick position
+                player.angle = Math.atan2(dy, dx);
+                
+                // Firing: Fire constantly if the stick is pulled beyond a minimum distance
+                if (distance > CONFIG.JOYSTICK_RADIUS * 0.2) {
+                    player.isFiring = true;
+                    if (fireCooldown <= 0) {
+                        // Spawn bullet from the center, moving in the direction of the ship's angle
+                        bullets.push(new Bullet(player.x, player.y, player.angle));
+                        fireCooldown = CONFIG.FIRE_COOLDOWN;
+                    }
+                } else {
+                    player.isFiring = false;
                 }
             } else {
-                player.isThrusting = false;
+                player.isFiring = false;
             }
 
             if (fireCooldown > 0) fireCooldown--;
 
 
-            // 2. Update Bullets
+            // 2. Update Bullets (and filter out dead ones)
             for (let i = bullets.length - 1; i >= 0; i--) {
                 bullets[i].update();
                 if (bullets[i].life <= 0) {
@@ -298,8 +318,8 @@
             // 3. Update Asteroids
             asteroids.forEach(a => a.update());
 
-            // 4. Collision Detection
-
+            // 4. Collision Detection (Bullet-Asteroid and Player-Asteroid)
+            
             // Bullet - Asteroid Collision
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i];
@@ -319,8 +339,6 @@
                         }
                         
                         asteroids.splice(j, 1);
-                        
-                        // Break inner loop and outer loop's bullet (since it was destroyed)
                         break; 
                     }
                 }
@@ -343,13 +361,14 @@
         function draw() {
             // Clear screen
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#04091C'; // Background Color
+            ctx.fillStyle = '#04091C'; 
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Draw game elements
+            asteroids.forEach(a => a.draw());
             player.draw();
             bullets.forEach(b => b.draw());
-            asteroids.forEach(a => a.draw());
+            
 
             // Draw Joystick Overlay
             if (joystick.active) {
@@ -358,14 +377,14 @@
                 // Outer Ring (Base)
                 ctx.beginPath();
                 ctx.arc(joystick.x, joystick.y, CONFIG.JOYSTICK_ACTIVE_RADIUS, 0, Math.PI * 2);
-                ctx.strokeStyle = 'rgba(51, 107, 135, 0.5)'; // Base color
+                ctx.strokeStyle = 'rgba(51, 107, 135, 0.5)'; 
                 ctx.lineWidth = 3;
                 ctx.stroke();
 
                 // Inner Knob (Current position)
                 ctx.beginPath();
                 ctx.arc(activeTouch.x, activeTouch.y, CONFIG.JOYSTICK_RADIUS, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(0, 188, 212, 0.7)'; // Knob color (Cyan)
+                ctx.fillStyle = 'rgba(0, 188, 212, 0.7)'; 
                 ctx.fill();
                 ctx.strokeStyle = 'rgba(0, 188, 212, 1)';
                 ctx.lineWidth = 2;
@@ -376,9 +395,9 @@
         function gameOver() {
             clearInterval(gameLoopInterval);
             ctx.font = '48px Arial';
-            ctx.fillStyle = '#FF5252'; // Red for Game Over
+            ctx.fillStyle = '#FF5252'; 
             ctx.textAlign = 'center';
-            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 25);
+            ctx.fillText('MISSION FAILED', canvas.width / 2, canvas.height / 2 - 25);
             ctx.font = '24px Arial';
             ctx.fillStyle = '#E0F7FA';
             ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2 + 25);
@@ -389,6 +408,7 @@
         }
 
         // === Input Handling (Touch/Joystick) ===
+        // (Unchanged from previous version, handles touch registration)
 
         function handleTouchStart(e) {
             e.preventDefault();
@@ -401,7 +421,6 @@
                 
                 touchData[touch.identifier] = { x: x, y: y };
 
-                // Activate joystick on first touch
                 if (!joystick.active) {
                     joystick.active = true;
                     joystick.x = x;
@@ -422,7 +441,6 @@
                 
                 touchData[touch.identifier] = { x: x, y: y };
                 
-                // Limit joystick knob movement to the active radius
                 if (touch.identifier === joystick.touchId) {
                     const dx = x - joystick.x;
                     const dy = y - joystick.y;
@@ -443,12 +461,10 @@
                 const touchId = e.changedTouches[i].identifier;
                 delete touchData[touchId];
 
-                // Deactivate the joystick if the controlling touch ends
                 if (touchId === joystick.touchId) {
                     joystick.active = false;
                     joystick.touchId = null;
                     
-                    // If other touches remain, pick one as the new joystick
                     const remainingTouches = Object.keys(touchData);
                     if (remainingTouches.length > 0) {
                         const newId = remainingTouches[0];
